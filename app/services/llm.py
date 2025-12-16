@@ -116,7 +116,7 @@ def _generate_response(prompt: str) -> str:
                     }
                     
                     # Make the API request
-                    response = requests.post(base_url, headers=headers, json=payload)
+                    response = requests.post(base_url, headers=headers, json=payload, verify=False)
                     response.raise_for_status()
                     result = response.json()
                     
@@ -173,10 +173,14 @@ def _generate_response(prompt: str) -> str:
             if llm_provider == "gemini":
                 import google.generativeai as genai
 
+                # Cấu hình API
                 if not base_url:
-                    genai.configure(api_key=api_key, transport="rest")
+                    genai.configure(api_key=api_key)
                 else:
-                    genai.configure(api_key=api_key, transport="rest", client_options={'api_endpoint': base_url})
+                    genai.configure(
+                        api_key=api_key,
+                        client_options={"api_endpoint": base_url}
+                    )
 
                 generation_config = {
                     "temperature": 0.5,
@@ -186,22 +190,10 @@ def _generate_response(prompt: str) -> str:
                 }
 
                 safety_settings = [
-                    {
-                        "category": "HARM_CATEGORY_HARASSMENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_HATE_SPEECH",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
-                    {
-                        "category": "HARM_CATEGORY_DANGEROUS_CONTENT",
-                        "threshold": "BLOCK_ONLY_HIGH",
-                    },
+                    {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_ONLY_HIGH"},
+                    {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
                 ]
 
                 model = genai.GenerativeModel(
@@ -210,14 +202,25 @@ def _generate_response(prompt: str) -> str:
                     safety_settings=safety_settings,
                 )
 
+                generated_text = ""
                 try:
                     response = model.generate_content(prompt)
-                    candidates = response.candidates
-                    generated_text = candidates[0].content.parts[0].text
-                except (AttributeError, IndexError) as e:
+
+                    # Kiểm tra response có candidates không
+                    if response and hasattr(response, "candidates") and response.candidates:
+                        parts = response.candidates[0].content.parts
+                        if parts and hasattr(parts[0], "text"):
+                            generated_text = parts[0].text
+                        else:
+                            print("Gemini Error: No text in response parts")
+                    else:
+                        print("Gemini Error: No candidates in response")
+
+                except Exception as e:
                     print("Gemini Error:", e)
 
                 return generated_text
+
 
             if llm_provider == "cloudflare":
                 response = requests.post(
@@ -263,8 +266,8 @@ def _generate_response(prompt: str) -> str:
                 headers = {"Content-Type": "application/json"}
 
                 response = requests.request(
-                    "POST", url, headers=headers, data=payload
-                ).json()
+                    "POST", url, headers=headers, data=payload,
+                verify=False).json()
                 return response.get("result")
 
             if llm_provider == "azure":
