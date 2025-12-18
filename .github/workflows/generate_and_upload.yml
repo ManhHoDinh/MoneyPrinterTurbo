@@ -1,0 +1,100 @@
+
+name: Generate and Upload Videos
+
+on:
+  workflow_dispatch:
+    inputs:
+      topics_file:
+        description: 'Path to the topics file'
+        required: true
+        default: 'topics.txt'
+      youtube_profile:
+        description: 'Path to the Firefox profile for YouTube Uploader'
+        required: true
+        default: 'firefox_profile'
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg imagemagick
+        
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Create config.toml
+      run: |
+        echo '[app]' > config.toml
+        echo 'video_source = "pexels"' >> config.toml
+        echo 'pexels_api_keys = ["${{ secrets.PEXELS_API_KEY }}"]' >> config.toml
+        echo 'llm_provider = "gemini"' >> config.toml
+        echo 'gemini_api_key = "${{ secrets.GEMINI_API_KEY }}"' >> config.toml
+        echo 'gemini_model_name = "gemini-2.5-pro"' >> config.toml
+        echo 'subtitle_provider = "edge"' >> config.toml
+        echo '' >> config.toml
+        echo '[azure]' >> config.toml
+        echo 'speech_key = "${{ secrets.AZURE_SPEECH_KEY }}"' >> config.toml
+        echo 'speech_region = "${{ secrets.AZURE_SPEECH_REGION }}"' >> config.toml
+
+    - name: Run video generator and uploader
+      run: |
+        python run_video_generator.py ${{ github.event.inputs.topics_file }}
+
+    - name: Upload Firefox Profile for YouTube Uploader (if it exists)
+      uses: actions/upload-artifact@v3
+      with:
+        name: firefox-profile
+        path: ${{ github.event.inputs.youtube_profile }}
+        
+# =================================================================================================
+#
+#  README FOR THIS WORKFLOW
+#
+#  This GitHub Action automates video generation and uploading to YouTube.
+#
+#  ** ⚠️ SETUP REQUIRED ⚠️ **
+#
+#  1. **GitHub Secrets:**
+#     You MUST configure the following secrets in your GitHub repository's settings
+#     (Settings > Secrets and variables > Actions):
+#
+#     - `PEXELS_API_KEY`: Your API key from Pexels.com for video footage.
+#     - `LLM_PROVIDER`: The language model provider to use (e.g., 'openai', 'gemini').
+#     - `OPENAI_API_KEY`: Your OpenAI API key (if using OpenAI).
+#     - `GEMINI_API_KEY`: Your Google AI Studio API key (if using Gemini).
+#     - `AZURE_SPEECH_KEY`: (Optional) Your Azure Speech service key for better text-to-speech.
+#     - `AZURE_SPEECH_REGION`: (Optional) The region for your Azure Speech service.
+#
+#  2. **YouTube Authentication (First Run):**
+#     The `youtube-uploader-selenium` library requires you to authenticate with YouTube in a browser
+#     the first time. The workflow is currently configured to SKIP the upload step.
+#
+#     To make it work:
+#     a. **Run Locally:** Run the `run_video_generator.py` script on your local machine first.
+#        When it tries to upload, a Firefox browser will open. Log in to your YouTube account.
+#     b. **Save Profile:** This will create a Firefox profile directory (e.g., 'firefox_profile').
+#     c. **Commit Profile:** Add this profile directory to your Git repository.
+#     d. **Enable Upload:** In `run_video_generator.py`, uncomment the line `upload_to_youtube(...)`.
+#     e. **Run Workflow:** The action will then use this committed profile to authenticate headlessly.
+#
+#     **Security Note:** The Firefox profile contains authentication cookies. Keep your repository private.
+#
+#  3. **Customize:**
+#     - Edit `topics.txt` to change the video subjects.
+#     - Edit the parameters in `run_video_generator.py` to change video style, voice, etc.
+#
+# =================================================================================================
