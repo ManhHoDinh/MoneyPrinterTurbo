@@ -47,7 +47,7 @@ jobs:
 
     - name: Start Server
       run: |
-        uvicorn main:app --host 0.0.0.0 --port 8080 &
+        python main.py &
         sleep 15 # Give the server a moment to initialize
 
     - name: Run video generator client
@@ -58,7 +58,7 @@ jobs:
     - name: Stop Server
       if: always() # Ensure this step runs even if the previous steps fail
       run: |
-        pkill -f "uvicorn" || echo "Server already stopped."
+        pkill -f "python main.py" || echo "Server already stopped."
 
     - name: Upload to YouTube
       env:
