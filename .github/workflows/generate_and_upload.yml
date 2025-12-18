@@ -61,13 +61,14 @@ jobs:
         pkill -f "uvicorn" || echo "Server already stopped."
 
     - name: Upload to YouTube
-      uses: MhM-code/youtube-upload-action@v1.0.1
-      with:
-        video_path: ${{ steps.video_generator.outputs.video_path }}
-        title: ${{ steps.video_generator.outputs.video_title }}
-        description: 'AI-generated video about ${{ steps.video_generator.outputs.video_title }}. Created with MoneyPrinterTurbo.'
-        credentials: ${{ secrets.YOUTUBE_CREDENTIALS }}
-        privacy_status: 'private' # Options: private, public, unlisted
+      env:
+        YOUTUBE_CREDENTIALS: ${{ secrets.YOUTUBE_CREDENTIALS }}
+      run: |
+        python youtube_uploader.py \
+          --video-path "${{ steps.video_generator.outputs.video_path }}" \
+          --title "${{ steps.video_generator.outputs.video_title }}" \
+          --description "AI-generated video about ${{ steps.video_generator.outputs.video_title }}. Created with MoneyPrinterTurbo." \
+          --privacy-status "private"
         
 # =================================================================================================
 #
