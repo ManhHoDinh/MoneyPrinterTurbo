@@ -170,17 +170,22 @@ def _generate_response(prompt: str) -> str:
                 else:
                     raise Exception(f"[{llm_provider}] returned an empty response")
 
-            if llm_provider == "gemini":
-                import google.generativeai as genai
+            if llm_provider == "gemini":   
+                import google.generativeai as genai             
+                if not api_key:
+                    logger.error("No API key provided")
+                    return ""
 
-                # Cấu hình API
-                if not base_url:
-                    genai.configure(api_key=api_key)
-                else:
-                    genai.configure(
-                        api_key=api_key,
-                        client_options={"api_endpoint": base_url}
-                    )
+                # Configure client: do not override endpoint unless necessary
+                try:
+                    if base_url:
+                        # If you must override, ensure no trailing slash and correct root only
+                        genai.configure(api_key=api_key, client_options={"api_endpoint": base_url})
+                    else:
+                        genai.configure(api_key=api_key)
+                except Exception:
+                    logger.exception("Failed to configure genai client")
+                    return ""
 
                 generation_config = {
                     "temperature": 0.5,
@@ -196,31 +201,59 @@ def _generate_response(prompt: str) -> str:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
                 ]
 
-                model = genai.GenerativeModel(
-                    model_name=model_name,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings,
-                )
+                try:
+                    model = genai.GenerativeModel(model_name=model_name)
+                except Exception:
+                    logger.exception("Failed to create GenerativeModel")
+                    return ""
 
+                try:
+                    response = model.generate_content(
+                        prompt,
+                        generation_config=generation_config,
+                        safety_settings=safety_settings,
+                    )
+                except Exception as e:
+                    logger.exception("Request failed: %s", e)
+                    # If exception contains HTTP response info, log it
+                    try:
+                        resp = getattr(e, "response", None)
+                        if resp is not None:
+                            logger.error("HTTP status: %s, body: %s", getattr(resp, "status_code", None), getattr(resp, "text", None))
+                    except Exception:
+                        pass
+                    return ""
+
+                # Extract text robustly
                 generated_text = ""
                 try:
-                    response = model.generate_content(prompt)
+                    if hasattr(response, "candidates") and response.candidates:
+                        candidate = response.candidates[0]
+                        content = getattr(candidate, "content", None)
 
-                    # Kiểm tra response có candidates không
-                    if response and hasattr(response, "candidates") and response.candidates:
-                        parts = response.candidates[0].content.parts
-                        if parts and hasattr(parts[0], "text"):
+                        # common shape: content.parts[0].text
+                        parts = getattr(content, "parts", None)
+                        if parts and len(parts) > 0 and hasattr(parts[0], "text"):
                             generated_text = parts[0].text
-                        else:
-                            print("Gemini Error: No text in response parts")
-                    else:
-                        print("Gemini Error: No candidates in response")
+                        elif isinstance(content, list) and len(content) > 0 and isinstance(content[0], str):
+                            generated_text = content[0]
+                        elif hasattr(content, "text"):
+                            generated_text = content.text
 
-                except Exception as e:
-                    print("Gemini Error:", e)
+                    # fallback fields
+                    if not generated_text:
+                        if hasattr(response, "text") and response.text:
+                            generated_text = response.text
+                        elif hasattr(response, "output_text") and response.output_text:
+                            generated_text = response.output_text
 
-                return generated_text
+                except Exception:
+                    logger.exception("Error extracting text from response")
+                    return ""
 
+                if not generated_text:
+                    logger.error("No text found in response object")
+                return generated_tex
 
             if llm_provider == "cloudflare":
                 response = requests.post(
