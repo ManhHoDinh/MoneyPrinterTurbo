@@ -50,6 +50,11 @@ jobs:
         echo 'speech_key = "${{ secrets.AZURE_SPEECH_KEY }}"' >> config.toml
         echo 'speech_region = "${{ secrets.AZURE_SPEECH_REGION }}"' >> config.toml
 
+    - name: Debug API endpoint
+      run: |
+        sleep 15 # Wait a bit longer for the server to be fully ready
+        curl -v -X POST http://127.0.0.1:8080/videos -H "Content-Type: application/json" -d '{"video_subject": "test"}'
+
     - name: Run video generator and uploader
       run: |
         python run_video_generator.py ${{ github.event.inputs.topics_file }}
