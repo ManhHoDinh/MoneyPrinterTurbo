@@ -53,7 +53,7 @@ jobs:
     - name: Start Server
       run: |
         python main.py &
-        sleep 10 # Give the server a moment to initialize
+        sleep 15 # Give the server a moment to initialize
 
     - name: Run video generator client
       run: |

@@ -44,7 +44,7 @@ def get_application() -> FastAPI:
         version=config.project_version,
         debug=False,
     )
-    instance.include_router(root_api_router, prefix="/api")
+    instance.include_router(root_api_router)
     instance.add_exception_handler(HttpException, exception_handler)
     instance.add_exception_handler(RequestValidationError, validation_exception_handler)
     return instance
@@ -69,7 +69,7 @@ app.mount(
 )
 
 public_dir = utils.public_dir()
-app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
+# app.mount("/", StaticFiles(directory=public_dir, html=True), name="")
 
 
 @app.on_event("shutdown")
