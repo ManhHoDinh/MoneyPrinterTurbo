@@ -6,6 +6,8 @@ import time
 import json
 import argparse
 from datetime import datetime
+import sys
+import signal
 
 # Configuration
 API_BASE_URL = "http://127.0.0.1:8080"
@@ -13,16 +15,26 @@ MAX_POLL_TIME = 1800  # 30 minutes
 POLL_INTERVAL = 30  # 30 seconds
 
 def start_server():
-    """Starts the FastAPI server as a background process."""
+    """Starts the FastAPI server as a background process, compatible with Windows and Linux."""
     print("Starting FastAPI server...")
     try:
-        # Use start-process for Windows to run in background
-        server_process = subprocess.Popen(
-            ["python", "main.py"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
-        )
+        if sys.platform == "win32":
+            # Use CREATE_NEW_PROCESS_GROUP on Windows to allow killing the process tree
+            server_process = subprocess.Popen(
+                ["python", "main.py"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
+            )
+        else:
+            # Use preexec_fn=os.setsid on Linux/macOS to run in a new session
+            server_process = subprocess.Popen(
+                ["python", "main.py"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                preexec_fn=os.setsid
+            )
+        
         time.sleep(10)  # Wait for the server to start
         print(f"Server started with PID: {server_process.pid}")
         return server_process
@@ -31,17 +43,23 @@ def start_server():
         return None
 
 def stop_server(process):
-    """Stops the FastAPI server."""
+    """Stops the FastAPI server, compatible with Windows and Linux."""
     if process:
         print(f"Stopping FastAPI server with PID: {process.pid}...")
         try:
-            process.terminate()
+            if sys.platform == "win32":
+                # On Windows, terminate the entire process group.
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(process.pid)], check=True)
+            else:
+                # On Linux/macOS, kill the entire process group using the session ID.
+                os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+            
             process.wait(timeout=30)
             print("Server stopped.")
-        except Exception as e:
-            print(f"Error stopping server: {e}")
-            # Force kill if terminate fails
-            subprocess.run(["taskkill", "/F", "/PID", str(process.pid)])
+        except (subprocess.CalledProcessError, ProcessLookupError, OSError) as e:
+            print(f"Error stopping server, it might have already been stopped: {e}")
+
+
 
 
 def generate_video(topic):
