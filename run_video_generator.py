@@ -327,13 +327,10 @@ def main():
 
         if download_video(video_url, download_path):
 
-             # For now, we will skip the upload part until the user confirms the setup
-
-             # upload_to_youtube(download_path, topic)
-
-             print(f"Video for topic '{topic}' is ready at {download_path}")
-
-             print("Skipping YouTube upload for now.")
+                # Set outputs for GitHub Actions
+            print(f"::set-output name=video_path::{download_path}")
+            print(f"::set-output name=video_title::{topic}")
+            print(f"Video for topic '{topic}' is ready at {download_path}")
 
 
 

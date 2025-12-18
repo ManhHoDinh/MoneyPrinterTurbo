@@ -1,4 +1,3 @@
-
 name: Generate and Upload Videos
 
 on:
@@ -8,10 +7,6 @@ on:
         description: 'Path to the topics file'
         required: true
         default: 'topics.txt'
-      youtube_profile:
-        description: 'Path to the Firefox profile for YouTube Uploader'
-        required: true
-        default: 'firefox_profile'
 
 jobs:
   build-and-upload:
@@ -43,7 +38,7 @@ jobs:
         echo 'pexels_api_keys = ["${{ secrets.PEXELS_API_KEY }}"]' >> config.toml
         echo 'llm_provider = "gemini"' >> config.toml
         echo 'gemini_api_key = "${{ secrets.GEMINI_API_KEY }}"' >> config.toml
-        echo 'gemini_model_name = "gemini-2.5-pro"' >> config.toml
+        echo 'gemini_model_name = "gemini-1.5-pro-latest"' >> config.toml
         echo 'subtitle_provider = "edge"' >> config.toml
         echo '' >> config.toml
         echo '[azure]' >> config.toml
@@ -52,24 +47,27 @@ jobs:
 
     - name: Start Server
       run: |
-        python main.py &
+        uvicorn main:app --host 0.0.0.0 --port 8080 &
         sleep 15 # Give the server a moment to initialize
 
     - name: Run video generator client
+      id: video_generator # Add an ID to reference the outputs
       run: |
         python run_video_generator.py ${{ github.event.inputs.topics_file }}
 
     - name: Stop Server
       if: always() # Ensure this step runs even if the previous steps fail
       run: |
-        pkill -f "python main.py" || echo "Server already stopped."
+        pkill -f "uvicorn" || echo "Server already stopped."
 
-    - name: Upload Firefox Profile for YouTube Uploader (if it exists)
-      if: always() # Run this even if the main script fails
-      uses: actions/upload-artifact@v4
+    - name: Upload to YouTube
+      uses: MhM-code/youtube-upload-action@v1.0.1
       with:
-        name: firefox-profile
-        path: ${{ github.event.inputs.youtube_profile }}
+        video_path: ${{ steps.video_generator.outputs.video_path }}
+        title: ${{ steps.video_generator.outputs.video_title }}
+        description: 'AI-generated video about ${{ steps.video_generator.outputs.video_title }}. Created with MoneyPrinterTurbo.'
+        credentials: ${{ secrets.YOUTUBE_CREDENTIALS }}
+        privacy_status: 'private' # Options: private, public, unlisted
         
 # =================================================================================================
 #
@@ -79,33 +77,64 @@ jobs:
 #
 #  ** ⚠️ SETUP REQUIRED ⚠️ **
 #
-#  1. **GitHub Secrets:**
-#     You MUST configure the following secrets in your GitHub repository's settings
-#     (Settings > Secrets and variables > Actions):
+#  You MUST configure the following secrets in your GitHub repository's settings
+#  (Settings > Secrets and variables > Actions) for this workflow to function.
 #
-#     - `PEXELS_API_KEY`: Your API key from Pexels.com for video footage.
-#     - `LLM_PROVIDER`: The language model provider to use (e.g., 'openai', 'gemini').
-#     - `OPENAI_API_KEY`: Your OpenAI API key (if using OpenAI).
-#     - `GEMINI_API_KEY`: Your Google AI Studio API key (if using Gemini).
-#     - `AZURE_SPEECH_KEY`: (Optional) Your Azure Speech service key for better text-to-speech.
+#  ** 1. Core Service Secrets: **
+#
+#     - `PEXELS_API_KEY`: Your API key from Pexels.com for stock video footage.
+#     - `GEMINI_API_KEY`: Your Google AI Studio API key for the language model (e.g., Gemini 1.5 Pro).
+#     - `AZURE_SPEECH_KEY`: (Optional) Your Azure Speech service key for text-to-speech.
 #     - `AZURE_SPEECH_REGION`: (Optional) The region for your Azure Speech service.
 #
-#  2. **YouTube Authentication (First Run):**
-#     The `youtube-uploader-selenium` library requires you to authenticate with YouTube in a browser
-#     the first time. The workflow is currently configured to SKIP the upload step.
 #
-#     To make it work:
-#     a. **Run Locally:** Run the `run_video_generator.py` script on your local machine first.
-#        When it tries to upload, a Firefox browser will open. Log in to your YouTube account.
-#     b. **Save Profile:** This will create a Firefox profile directory (e.g., 'firefox_profile').
-#     c. **Commit Profile:** Add this profile directory to your Git repository.
-#     d. **Enable Upload:** In `run_video_generator.py`, uncomment the line `upload_to_youtube(...)`.
-#     e. **Run Workflow:** The action will then use this committed profile to authenticate headlessly.
+#  ** 2. YouTube Upload Secret (`YOUTUBE_CREDENTIALS`): **
 #
-#     **Security Note:** The Firefox profile contains authentication cookies. Keep your repository private.
+#     This secret contains your Google Cloud credentials, allowing the action to upload videos
+#     to your YouTube channel on your behalf.
 #
-#  3. **Customize:**
-#     - Edit `topics.txt` to change the video subjects.
-#     - Edit the parameters in `run_video_generator.py` to change video style, voice, etc.
+#     **How to get your credentials:**
+#
+#     a. **Google Cloud Project:**
+#        - Go to the [Google Cloud Console](https://console.cloud.google.com/).
+#        - Create a new project or select an existing one.
+#
+#     b. **Enable YouTube Data API:**
+#        - In your project, go to "APIs & Services" > "Library".
+#        - Search for "YouTube Data API v3" and enable it.
+#
+#     c. **Configure OAuth Consent Screen:**
+#        - Go to "APIs & Services" > "OAuth consent screen".
+#        - Choose "External" and click "Create".
+#        - Fill in the required app information (app name, user support email, developer contact).
+#        - On the "Scopes" page, you do not need to add any scopes.
+#        - On the "Test users" page, add the Google account associated with your YouTube channel.
+#        - Save and continue.
+#
+#     d. **Create Credentials:**
+#        - Go to "APIs & Services" > "Credentials".
+#        - Click "+ CREATE CREDENTIALS" and select "OAuth client ID".
+#        - Select "Desktop app" as the Application type.
+#        - Give it a name (e.g., "YouTube Uploader").
+#        - Click "Create". A modal will appear with your client ID and secret.
+#        - Click "DOWNLOAD JSON" to save the `client_secret.json` file.
+#
+#     e. **Authorize the Credentials (First Time Only):**
+#        - This step must be done on your local machine, not in the GitHub Action.
+#        - Run the uploader action's authenticator locally. You'll need Python installed.
+#          pip install google-auth-oauthlib
+#          python -c "from google_auth_oauthlib.flow import InstalledAppFlow; flow = InstalledAppFlow.from_client_secrets_file('client_secret.json', scopes=['https://www.googleapis.com/auth/youtube.upload']); flow.run_local_server()"
+#        - This will print a URL. Open it in your browser.
+#        - Log in with the YouTube/Google account you added as a test user.
+#        - Grant the application permission to upload videos.
+#        - After authorization, the local script will finish, and your `client_secret.json` will now contain a `refresh_token`.
+#
+#     f. **Encode and Create GitHub Secret:**
+#        - You now need to convert your updated `client_secret.json` file into a single-line Base64 string.
+#        - On Linux/macOS: `base64 -w 0 client_secret.json`
+#        - On Windows (PowerShell): `[Convert]::ToBase64String([IO.File]::ReadAllBytes('client_secret.json'))`
+#        - Copy the resulting long string.
+#        - In your GitHub repository, go to Settings > Secrets and variables > Actions.
+#        - Create a new secret named `YOUTUBE_CREDENTIALS` and paste the Base64 string into it.
 #
 # =================================================================================================
