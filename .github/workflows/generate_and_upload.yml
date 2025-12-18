@@ -55,7 +55,7 @@ jobs:
         python run_video_generator.py ${{ github.event.inputs.topics_file }}
 
     - name: Upload Firefox Profile for YouTube Uploader (if it exists)
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: firefox-profile
         path: ${{ github.event.inputs.youtube_profile }}
