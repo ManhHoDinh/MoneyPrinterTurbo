@@ -19,9 +19,15 @@ import sys
 
 # Configuration
 
-API_BASE_URL = "http://127.0.0.1:8080"
+
+
+API_BASE_URL = "http://127.0.0.1:8080/api"
+
+
 
 MAX_POLL_TIME = 1800  # 30 minutes
+
+
 
 POLL_INTERVAL = 30  # 30 seconds
 
