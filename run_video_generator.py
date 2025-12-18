@@ -21,7 +21,7 @@ import sys
 
 
 
-API_BASE_URL = "http://127.0.0.1:8080/api/v1/"
+API_BASE_URL = "http://127.0.0.1:8080"
 
 
 
@@ -49,7 +49,7 @@ def generate_video(topic):
 
         }
 
-        response = requests.post(f"{API_BASE_URL}/videos", json=payload, timeout=60)
+        response = requests.post(f"{API_BASE_URL}/api/v1/videos", json=payload, timeout=60)
 
         response.raise_for_status()
 
@@ -79,7 +79,7 @@ def poll_task_status(task_id):
 
             print(f"Polling status for task ID: {task_id}...")
 
-            response = requests.get(f"{API_BASE_URL}/tasks/{task_id}", timeout=60)
+            response = requests.get(f"{API_BASE_URL}/api/v1/tasks/{task_id}", timeout=60)
 
             response.raise_for_status()
 
