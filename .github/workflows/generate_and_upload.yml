@@ -50,16 +50,22 @@ jobs:
         echo 'speech_key = "${{ secrets.AZURE_SPEECH_KEY }}"' >> config.toml
         echo 'speech_region = "${{ secrets.AZURE_SPEECH_REGION }}"' >> config.toml
 
-    - name: Debug API endpoint
+    - name: Start Server
       run: |
-        sleep 15 # Wait a bit longer for the server to be fully ready
-        curl -v -X POST http://127.0.0.1:8080/videos -H "Content-Type: application/json" -d '{"video_subject": "test"}'
+        python main.py &
+        sleep 10 # Give the server a moment to initialize
 
-    - name: Run video generator and uploader
+    - name: Run video generator client
       run: |
         python run_video_generator.py ${{ github.event.inputs.topics_file }}
 
+    - name: Stop Server
+      if: always() # Ensure this step runs even if the previous steps fail
+      run: |
+        pkill -f "python main.py" || echo "Server already stopped."
+
     - name: Upload Firefox Profile for YouTube Uploader (if it exists)
+      if: always() # Run this even if the main script fails
       uses: actions/upload-artifact@v4
       with:
         name: firefox-profile
