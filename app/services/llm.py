@@ -253,7 +253,7 @@ def _generate_response(prompt: str) -> str:
 
                 if not generated_text:
                     logger.error("No text found in response object")
-                return generated_tex
+                return generated_text
 
             if llm_provider == "cloudflare":
                 response = requests.post(
