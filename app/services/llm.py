@@ -170,23 +170,31 @@ def _generate_response(prompt: str) -> str:
                 else:
                     raise Exception(f"[{llm_provider}] returned an empty response")
 
-            if llm_provider == "gemini":   
-                import google.generativeai as genai             
+            if llm_provider == "gemini":
+                import google.generativeai as genai
+
+                # mask API key for logs (show only last 4 chars)
+                def _mask_key(key: str) -> str:
+                    if not key:
+                        return "<empty>"
+                    if len(key) <= 8:
+                        return "*" * (len(key) - 2) + key[-2:]
+                    return key[:4] + "*" * (len(key) - 8) + key[-4:]
+
+                # prepare and validate
                 if not api_key:
-                    logger.error("No API key provided")
+                    logger.error("gemini: api_key is not set")
+                    return ""
+                if not model_name:
+                    logger.error("gemini: model_name is not set")
                     return ""
 
-                # Configure client: do not override endpoint unless necessary
-                try:
-                    if base_url:
-                        # If you must override, ensure no trailing slash and correct root only
-                        genai.configure(api_key=api_key, client_options={"api_endpoint": base_url})
-                    else:
-                        genai.configure(api_key=api_key)
-                except Exception:
-                    logger.exception("Failed to configure genai client")
-                    return ""
+                # ensure base_url is either None or root host without trailing slash
+                if base_url:
+                    # normalize: remove trailing slash
+                    base_url = base_url.rstrip("/")
 
+                # generation and safety configs (log these)
                 generation_config = {
                     "temperature": 0.5,
                     "top_p": 1,
@@ -201,12 +209,34 @@ def _generate_response(prompt: str) -> str:
                     {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_ONLY_HIGH"},
                 ]
 
+                # Log prompt and parameters (prompt truncated to avoid huge logs)
+                try:
+                    prompt_preview = prompt if len(prompt) <= 1000 else prompt[:1000] + "...[truncated]"
+                except Exception:
+                    prompt_preview = "[unprintable prompt]"
+
+                logger.info("gemini: calling model")
+                logger.debug(f"gemini: model_name={model_name}, base_url={base_url or '<default>'}, api_key_mask={_mask_key(api_key)}")
+                logger.debug(f"gemini: generation_config={generation_config}")
+                logger.debug(f"gemini: safety_settings={safety_settings}")
+                logger.debug(f"gemini: prompt_preview={prompt_preview}")
+
+
+                # configure client (do not print secrets)
+                try:
+                        genai.configure(api_key=api_key)
+                except Exception:
+                    logger.exception("gemini: failed to configure genai client")
+                    return ""
+
+                # create model handle
                 try:
                     model = genai.GenerativeModel(model_name=model_name)
                 except Exception:
-                    logger.exception("Failed to create GenerativeModel")
+                    logger.exception("gemini: failed to create GenerativeModel")
                     return ""
 
+                # call generate_content and capture detailed errors
                 try:
                     response = model.generate_content(
                         prompt,
@@ -214,18 +244,26 @@ def _generate_response(prompt: str) -> str:
                         safety_settings=safety_settings,
                     )
                 except Exception as e:
-                    logger.exception("Request failed: %s", e)
-                    # If exception contains HTTP response info, log it
+                    # log exception and any HTTP response info if present
+                    logger.exception("gemini: request failed: %s", e)
                     try:
                         resp = getattr(e, "response", None)
                         if resp is not None:
-                            logger.error("HTTP status: %s, body: %s", getattr(resp, "status_code", None), getattr(resp, "text", None))
+                            # some SDK exceptions expose status_code/text
+                            status = getattr(resp, "status_code", None)
+                            body = getattr(resp, "text", None)
+                            logger.error("gemini: HTTP status=%s, body=%s", status, body)
                     except Exception:
-                        pass
+                        logger.debug("gemini: no http response attached to exception or failed to read it")
                     return ""
 
-                # Extract text robustly
+                # robust extraction + logging of response shape
                 generated_text = ""
+                try:
+                    logger.debug("gemini: raw response repr: %s", repr(response)[:2000])  # truncate long repr
+                except Exception:
+                    logger.debug("gemini: cannot repr response")
+
                 try:
                     if hasattr(response, "candidates") and response.candidates:
                         candidate = response.candidates[0]
@@ -235,25 +273,38 @@ def _generate_response(prompt: str) -> str:
                         parts = getattr(content, "parts", None)
                         if parts and len(parts) > 0 and hasattr(parts[0], "text"):
                             generated_text = parts[0].text
+                            logger.debug("gemini: extracted from content.parts[0].text")
                         elif isinstance(content, list) and len(content) > 0 and isinstance(content[0], str):
                             generated_text = content[0]
+                            logger.debug("gemini: extracted from content list")
                         elif hasattr(content, "text"):
                             generated_text = content.text
+                            logger.debug("gemini: extracted from content.text")
+                        else:
+                            logger.warning("gemini: candidate.content has unexpected shape: %s", type(content))
+                    else:
+                        logger.warning("gemini: no candidates in response or empty response object")
 
                     # fallback fields
                     if not generated_text:
                         if hasattr(response, "text") and response.text:
                             generated_text = response.text
+                            logger.debug("gemini: extracted from response.text")
                         elif hasattr(response, "output_text") and response.output_text:
                             generated_text = response.output_text
+                            logger.debug("gemini: extracted from response.output_text")
 
                 except Exception:
-                    logger.exception("Error extracting text from response")
+                    logger.exception("gemini: error extracting text from response")
                     return ""
 
                 if not generated_text:
-                    logger.error("No text found in response object")
-                return generated_text
+                    logger.error("gemini: no text found in response object; returning empty string")
+                    return ""
+
+                # final cleanup and return
+                return generated_text.replace("\n", "")
+
 
             if llm_provider == "cloudflare":
                 response = requests.post(
@@ -500,18 +551,4 @@ Please note that you must use English for generating video search terms; Chinese
 
     logger.success(f"completed: \n{search_terms}")
     return search_terms
-
-
-if __name__ == "__main__":
-    video_subject = "生命的意义是什么"
-    script = generate_script(
-        video_subject=video_subject, language="zh-CN", paragraph_number=1
-    )
-    print("######################")
-    print(script)
-    search_terms = generate_terms(
-        video_subject=video_subject, video_script=script, amount=5
-    )
-    print("######################")
-    print(search_terms)
     
