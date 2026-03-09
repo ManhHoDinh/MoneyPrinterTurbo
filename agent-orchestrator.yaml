@@ -1,0 +1,20 @@
+dataDir: ./storage/agent-orchestrator/data
+worktreeDir: ./storage/agent-orchestrator/worktrees
+port: 3000
+defaults:
+  runtime: tmux
+  agent: claude-code
+  workspace: worktree
+  notifiers:
+    - desktop
+projects:
+  MoneyPrinterTurbo:
+    repo: local/MoneyPrinterTurbo
+    path: D:/prepareInterview/video/MoneyPrinterTurbo
+    defaultBranch: main
+    agentRules: |
+      Always keep changes small, reviewable, and easy to revert.
+      Prefer fixing one concrete issue per session instead of broad refactors.
+      Respect existing uncommitted work in the repository and do not revert unrelated changes.
+      Run the smallest relevant validation before finishing a change.
+      For Python changes, prefer typed, bounded edits and keep the worktree buildable.

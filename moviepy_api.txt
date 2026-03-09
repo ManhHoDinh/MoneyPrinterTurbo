@@ -1,0 +1,12 @@
+﻿2.1.2
+Help on function __init__ in module moviepy.video.VideoClip:
+
+__init__(
+    self,
+    frame_function=None,
+    is_mask=False,
+    duration=None,
+    has_constant_size=True
+)
+    Initialize self.  See help(type(self)) for accurate signature.
+

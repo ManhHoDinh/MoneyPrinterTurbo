@@ -1,6 +1,6 @@
 moviepy==2.1.2
 streamlit==1.45.0
-edge_tts==6.1.19
+edge_tts==7.2.7
 fastapi==0.115.6
 uvicorn==0.32.1
 openai==1.56.1
@@ -17,4 +17,7 @@ requests>=2.31.0
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
-
+sqlalchemy>=2.0.0
+celery>=5.3.0
+cryptography>=41.0.0
+croniter>=2.0.0

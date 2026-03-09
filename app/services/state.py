@@ -149,10 +149,127 @@ _redis_port = config.app.get("redis_port", 6379)
 _redis_db = config.app.get("redis_db", 0)
 _redis_password = config.app.get("redis_password", None)
 
-state = (
+_inner_state = (
     RedisState(
         host=_redis_host, port=_redis_port, db=_redis_db, password=_redis_password
     )
     if _enable_redis
     else MemoryState()
 )
+
+
+# ── Logging State Proxy ──────────────────────────────────────────────────────
+# Wraps the real state and emits job_log() on every update_task call
+# so that all 20 video generation tasks stream logs in real-time.
+
+_PROGRESS_STAGE_MAP = {
+    5: "Starting pipeline",
+    10: "Script generated",
+    20: "Search terms ready",
+    30: "Audio generated (TTS)",
+    40: "Subtitles created",
+    50: "Video materials downloaded",
+    100: "Complete",
+}
+
+_STATE_NAME_MAP = {
+    const.TASK_STATE_PROCESSING: "PROCESSING",
+    const.TASK_STATE_COMPLETE: "COMPLETE",
+    const.TASK_STATE_FAILED: "FAILED",
+}
+
+
+class _LoggingStateProxy:
+    """Proxy that wraps the real state and emits job_log on updates."""
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def update_task(self, task_id: str, state: int = const.TASK_STATE_PROCESSING, progress: int = 0, **kwargs):
+        self._inner.update_task(task_id, state=state, progress=progress, **kwargs)
+
+        # Emit log for streaming
+        try:
+            from app.services.job_logger import job_log
+
+            progress = int(progress)
+            state_name = _STATE_NAME_MAP.get(state, f"state={state}")
+
+            # Determine stage description
+            stage_desc = _PROGRESS_STAGE_MAP.get(progress, "")
+            if not stage_desc and progress > 50:
+                stage_desc = f"Rendering video ({progress}%)"
+
+            if state == const.TASK_STATE_FAILED:
+                job_log(task_id, f"❌ Task FAILED at {progress}%", level="ERROR", stage="failed")
+            elif state == const.TASK_STATE_COMPLETE:
+                job_log(task_id, f"✅ Task completed", stage="completed")
+                if kwargs.get("videos"):
+                    videos = kwargs["videos"]
+                    job_log(task_id, f"Generated {len(videos)} video(s)", stage="completed")
+                if kwargs.get("viral_score"):
+                    job_log(task_id, f"Viral score: {kwargs['viral_score']}", stage="score")
+            elif stage_desc:
+                job_log(task_id, f"[{progress}%] {stage_desc}", stage=stage_desc.split()[0].lower())
+            else:
+                job_log(task_id, f"[{progress}%] Progress update", stage="progress")
+        except Exception:
+            pass  # Never let logging break the pipeline
+
+    def get_task(self, task_id: str):
+        return self._inner.get_task(task_id)
+
+    def get_all_tasks(self, page: int, page_size: int):
+        return self._inner.get_all_tasks(page, page_size)
+
+    def delete_task(self, task_id: str):
+        return self._inner.delete_task(task_id)
+
+
+state = _LoggingStateProxy(_inner_state)
+
+
+# ── Loguru Task Sink ─────────────────────────────────────────────────────────
+# Captures logger.info/error/etc calls from task.py and routes them to job_log
+# based on the current task context.
+
+import threading
+
+_current_task_id = threading.local()
+
+
+def set_current_task(task_id: str):
+    """Set the active task_id for log routing in this thread."""
+    _current_task_id.value = task_id
+
+
+def get_current_task() -> str:
+    """Get the active task_id for this thread."""
+    return getattr(_current_task_id, "value", "")
+
+
+def _task_log_sink(message):
+    """Loguru sink that routes logs to the active task's job_log buffer."""
+    task_id = get_current_task()
+    if not task_id:
+        return
+
+    record = message.record
+    text = record["message"]
+
+    # Skip very noisy or internal messages
+    if any(skip in text for skip in ["[Genome]", "[JobLogger]", "[AnalyticsHub]"]):
+        return
+
+    try:
+        from app.services.job_logger import job_log
+        level = record["level"].name
+        job_log(task_id, text, level=level, stage="pipeline")
+    except Exception:
+        pass
+
+
+# Install the sink (only captures task-context logs, not ALL logs)
+from loguru import logger as _logger
+_logger.add(_task_log_sink, level="INFO", filter=lambda record: bool(get_current_task()))
+

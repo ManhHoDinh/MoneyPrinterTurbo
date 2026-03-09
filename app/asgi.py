@@ -80,3 +80,21 @@ def shutdown_event():
 @app.on_event("startup")
 def startup_event():
     logger.info("startup event")
+    # Initialize content farm database
+    try:
+        from app.db.engine import init_db
+        init_db()
+        logger.info("Content farm database initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+
+# Mount dashboard static files
+_dashboard_dir = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "dashboard"
+)
+if os.path.isdir(_dashboard_dir):
+    app.mount(
+        "/dashboard",
+        StaticFiles(directory=_dashboard_dir, html=True),
+        name="dashboard",
+    )

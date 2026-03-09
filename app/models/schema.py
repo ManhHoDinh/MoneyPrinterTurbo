@@ -51,6 +51,9 @@ class MaterialInfo:
     provider: str = "pexels"
     url: str = ""
     duration: int = 0
+    quality_score: float = 0.0
+    scene_index: int = -1
+    emotion: str = ""
 
 
 class VideoParams(BaseModel):
@@ -60,7 +63,7 @@ class VideoParams(BaseModel):
       "video_aspect": "横屏 16:9（西瓜视频）",
       "voice_name": "女生-晓晓",
       "bgm_name": "random",
-      "font_name": "STHeitiMedium 黑体-中",
+      "font_name": "BeVietnamPro-Bold.ttf",
       "text_color": "#FFFFFF",
       "font_size": 60,
       "stroke_color": "#000000",
@@ -95,16 +98,35 @@ class VideoParams(BaseModel):
     subtitle_enabled: Optional[bool] = True
     subtitle_position: Optional[str] = "bottom"  # top, bottom, center
     custom_position: float = 70.0
-    font_name: Optional[str] = "STHeitiMedium.ttc"
+    font_name: Optional[str] = "BeVietnamPro-Bold.ttf"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
 
     font_size: int = 60
     stroke_color: Optional[str] = "#000000"
     stroke_width: float = 1.5
-    n_threads: Optional[int] = 2
+    subtitle_mode: Optional[str] = "static"  # "dynamic" (word highlight) or "static" (streamlit-like)
+    n_threads: Optional[int] = 1
     paragraph_number: Optional[int] = 1
 
+    # Viral video system fields
+    video_style: Optional[str] = None  # Style preset: dark_psychology, motivation, luxury_lifestyle, stoic_philosophy, viral_facts
+    enable_trend_topics: Optional[bool] = False  # Whether to use trend system for topic generation
+    reference_style_tags: Optional[List[str]] = None  # Viral style learning tags: ["fast-paced", "dark", "cinematic"]
+
+    # Elite Cinematic Video System fields
+    enable_hook_generator: Optional[bool] = True   # Generate ultra-strong opening hooks
+    enable_viral_rewrite: Optional[bool] = True    # Rewrite script with open loops + pattern interrupts
+    enable_beat_sync: Optional[bool] = False       # Align cuts to BGM beats (requires librosa)
+    enable_retention_optimizer: Optional[bool] = True  # Enforce retention rules (visual change 2-4s, surprise 10-15s)
+
+    # GOD MODE fields
+    enable_ab_hooks: Optional[bool] = False  # Generate 3-5 hook variants for A/B testing
+    batch_mode: Optional[bool] = False       # Enable batch generation mode
+    viral_score_threshold: Optional[float] = 0.0  # Min viral score for topic acceptance (0 = disabled)
+    feedback_video_id: Optional[str] = None  # Video ID for feedback recording
+    stealth_mode: Optional[bool] = False     # Use stealth scale mode with mutations
+    channel_profile: Optional[str] = None    # Override profile for multi-channel scaling
 
 class SubtitleRequest(BaseModel):
     video_script: str
@@ -116,7 +138,7 @@ class SubtitleRequest(BaseModel):
     bgm_file: Optional[str] = ""
     bgm_volume: Optional[float] = 0.2
     subtitle_position: Optional[str] = "bottom"
-    font_name: Optional[str] = "STHeitiMedium.ttc"
+    font_name: Optional[str] = "BeVietnamPro-Bold.ttf"
     text_fore_color: Optional[str] = "#FFFFFF"
     text_background_color: Union[bool, str] = True
     font_size: int = 60

@@ -24,6 +24,7 @@ from app.models.schema import (
 )
 from app.services import llm, voice
 from app.services import task as tm
+from app.services import style_presets, trends
 from app.utils import utils
 
 st.set_page_config(
@@ -490,11 +491,34 @@ uploaded_files = []
 with left_panel:
     with st.container(border=True):
         st.write(tr("Video Script Settings"))
+
+        # ── Style Preset Selector ──
+        style_display_names = style_presets.get_preset_display_names()
+        style_options = [("None (Default)", "")] + [(v, k) for k, v in style_display_names.items()]
+        selected_style_idx = st.selectbox(
+            "🎬 Video Style",
+            options=range(len(style_options)),
+            format_func=lambda x: style_options[x][0],
+            index=0,
+        )
+        params.video_style = style_options[selected_style_idx][1] if selected_style_idx else None
+
         params.video_subject = st.text_input(
             tr("Video Subject"),
             value=st.session_state["video_subject"],
             key="video_subject_input",
         ).strip()
+
+        # ── Trend Topic Suggestions ──
+        if st.button("🔥 Suggest Trending Topics", key="suggest_trends"):
+            niche = params.video_style or ""
+            with st.spinner("Finding viral topics..."):
+                suggestions = trends.suggest_topic_subjects(niche=niche, count=5)
+                if suggestions:
+                    st.session_state["video_subject"] = suggestions[0]
+                    st.info("**Top trending topics:**\n" + "\n".join(f"- {s}" for s in suggestions))
+                else:
+                    st.warning("No trending topics found. Try adding topics to resource/trending_topics.txt")
 
         video_languages = [
             (tr("Auto Detect"), ""),
@@ -519,7 +543,8 @@ with left_panel:
         ):
             with st.spinner(tr("Generating Video Script and Keywords")):
                 script = llm.generate_script(
-                    video_subject=params.video_subject, language=params.video_language
+                    video_subject=params.video_subject, language=params.video_language,
+                    video_style=params.video_style or "",
                 )
                 terms = llm.generate_terms(params.video_subject, script)
                 if "Error: " in script:
@@ -871,7 +896,7 @@ with right_panel:
         st.write(tr("Subtitle Settings"))
         params.subtitle_enabled = st.checkbox(tr("Enable Subtitles"), value=True)
         font_names = get_all_fonts()
-        saved_font_name = config.ui.get("font_name", "MicrosoftYaHeiBold.ttc")
+        saved_font_name = config.ui.get("font_name", "BeVietnamPro-Bold.ttf")
         saved_font_name_index = 0
         if saved_font_name in font_names:
             saved_font_name_index = font_names.index(saved_font_name)

@@ -1,24 +1,178 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  Content Farm Platform — Docker Compose (Scalable)
+#
+#  Services:
+#    redis     — Message broker + result backend
+#    api       — FastAPI server + dashboard UI
+#    webui     — Original Streamlit generator (UNCHANGED)
+#    worker    — Celery worker pool (horizontally scalable)
+#    beat      — Celery Beat cron scheduler
+#
+#  Scaling:
+#    docker-compose up --scale worker=4
+#    (Runs 4 parallel worker containers for distributed rendering)
+#
+#  The existing video generator is treated as a black box.
+#  Workers call it through generator_wrapper.py → task.start().
+# ══════════════════════════════════════════════════════════════════════════════
+
 x-common-volumes: &common-volumes
   - ./:/MoneyPrinterTurbo
+  - video_output:/MoneyPrinterTurbo/storage/tasks
+  - db_data:/MoneyPrinterTurbo/storage
+
+x-common-env: &common-env
+  PYTHONPATH: /MoneyPrinterTurbo
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+  YOUTUBE_CLIENT_ID: ${YOUTUBE_CLIENT_ID:-}
+  YOUTUBE_CLIENT_SECRET: ${YOUTUBE_CLIENT_SECRET:-}
+  YOUTUBE_REDIRECT_URI: ${YOUTUBE_REDIRECT_URI:-http://localhost:8080/api/v1/youtube/callback}
 
 services:
-  webui:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: "moneyprinterturbo-webui"
+
+  # ── Redis (Broker + Backend) ────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: "contentfarm-redis"
     ports:
-      - "8501:8501"
-    command: [ "streamlit", "run", "./webui/Main.py","--browser.serverAddress=127.0.0.1","--server.enableCORS=True","--browser.gatherUsageStats=False" ]
-    volumes: *common-volumes
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     restart: always
+    cpus: "0.50"
+    mem_limit: 512m
+    mem_reservation: 256m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ── API Server (FastAPI + Dashboard) ────────────────────────────
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: "moneyprinterturbo-api"
+    container_name: "contentfarm-api"
     ports:
       - "8080:8080"
-    command: [ "python3", "main.py" ]
+    command: ["python3", "main.py"]
     volumes: *common-volumes
+    environment:
+      <<: *common-env
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: always
+    cpus: "1.50"
+    mem_limit: 2g
+    mem_reservation: 1g
+
+  # ── Video Generator UI (Existing — UNCHANGED) ──────────────────
+  webui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "contentfarm-generator"
+    ports:
+      - "8501:8501"
+    command: >
+      streamlit run ./webui/Main.py
+      --browser.serverAddress=0.0.0.0
+      --server.enableCORS=True
+      --browser.gatherUsageStats=False
+    volumes: *common-volumes
+    environment:
+      <<: *common-env
+    restart: always
+    cpus: "1.00"
+    mem_limit: 1g
+    mem_reservation: 512m
+
+  # ── Celery Worker Pool (Horizontally Scalable) ─────────────────
+  # Scale with: docker-compose up --scale worker=N
+  # Each worker runs 1 concurrent task to avoid OOM during MoviePy rendering.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # NO container_name — allows multiple replicas
+    command: >
+      celery -A app.worker.celery_app:celery_app worker
+      --loglevel=info
+      --queues=render,upload
+      --concurrency=${WORKER_CONCURRENCY:-1}
+      --max-tasks-per-child=${WORKER_MAX_TASKS_PER_CHILD:-1}
+      --without-heartbeat
+      --without-mingle
+    volumes: *common-volumes
+    environment:
+      <<: *common-env
+      C_FORCE_ROOT: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    cpus: "2.00"
+    mem_limit: 4g
+    mem_reservation: 1g
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          cpus: "2.00"
+          memory: 4G
+        reservations:
+          cpus: "0.50"
+          memory: 1G
+
+  worker_control:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      celery -A app.worker.celery_app:celery_app worker
+      --loglevel=info
+      --queues=control
+      --concurrency=1
+      --max-tasks-per-child=20
+      --without-heartbeat
+      --without-mingle
+    volumes: *common-volumes
+    environment:
+      <<: *common-env
+      C_FORCE_ROOT: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    cpus: "0.50"
+    mem_limit: 768m
+    mem_reservation: 256m
+
+  # ── Celery Beat (Scheduler — Single Instance) ──────────────────
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: "contentfarm-beat"
+    command: >
+      celery -A app.worker.celery_app:celery_app beat
+      --loglevel=info
+    volumes: *common-volumes
+    environment:
+      <<: *common-env
+      C_FORCE_ROOT: "true"
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: always
+    cpus: "0.50"
+    mem_limit: 512m
+    mem_reservation: 256m
+
+volumes:
+  redis_data:
+  video_output:
+  db_data:

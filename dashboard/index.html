@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Farm — Dashboard</title>
+    <meta name="description" content="Multi-channel AI video content farm management dashboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/dashboard/css/style.css">
+</head>
+
+<body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">⚡</div>
+            <span class="brand-text">ContentFarm</span>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="#/" class="nav-item active" data-page="dashboard">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Dashboard</span>
+            </a>
+            <a href="#/channels" class="nav-item" data-page="channels">
+                <span class="nav-icon">📺</span>
+                <span class="nav-label">Channels</span>
+            </a>
+            <a href="#/jobs" class="nav-item" data-page="jobs">
+                <span class="nav-icon">🎬</span>
+                <span class="nav-label">Video Jobs</span>
+            </a>
+            <a href="#/uploads" class="nav-item" data-page="uploads">
+                <span class="nav-icon">☁️</span>
+                <span class="nav-label">Uploads</span>
+            </a>
+            <a href="#/scheduler" class="nav-item" data-page="scheduler">
+                <span class="nav-icon">⏰</span>
+                <span class="nav-label">Scheduler</span>
+            </a>
+            <a href="#/logs" class="nav-item" data-page="logs">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Logs</span>
+            </a>
+            <a href="#/revenue" class="nav-item" data-page="revenue" style="color:#2ea043;">
+                <span class="nav-icon">💰</span>
+                <span class="nav-label">Revenue</span>
+            </a>
+            <a href="#/settings" class="nav-item" data-page="settings">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Settings</span>
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span class="status-text">System Online</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content" id="mainContent">
+        <header class="top-bar">
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <h1 class="page-title" id="pageTitle">Dashboard</h1>
+            <div class="top-bar-actions">
+                <span class="time-display" id="timeDisplay"></span>
+            </div>
+        </header>
+        <div class="content-area" id="contentArea">
+            <!-- Dynamic page content injected here -->
+        </div>
+    </main>
+
+    <!-- Modal Container -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal" id="modal">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle"></h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="/dashboard/js/api.js?v=12"></script>
+    <script src="/dashboard/js/pages/dashboard_page.js?v=6"></script>
+    <script src="/dashboard/js/pages/channels.js?v=12"></script>
+    <script src="/dashboard/js/pages/jobs.js?v=6"></script>
+    <script src="/dashboard/js/pages/uploads.js?v=6"></script>
+    <script src="/dashboard/js/pages/scheduler.js?v=12"></script>
+    <script src="/dashboard/js/pages/logs.js?v=7"></script>
+    <script src="/dashboard/js/pages/revenue.js?v=9"></script>
+    <script src="/dashboard/js/pages/settings.js?v=7"></script>
+    <script src="/dashboard/js/app.js?v=7"></script>
+</body>
+
+</html>

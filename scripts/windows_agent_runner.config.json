@@ -1,0 +1,25 @@
+{
+  "runnerRoot": "storage/windows-agent-runner",
+  "python": "python",
+  "intervalSeconds": 1200,
+  "pauseSeconds": 15,
+  "maxCycles": 0,
+  "stepTimeoutSeconds": 1800,
+  "stopOnStepFailure": true,
+  "auditHoursWindow": 48,
+  "steps": {
+    "applyFixRecipes": true,
+    "compileCheck": true,
+    "runAudit": true,
+    "runAgentCommand": true
+  },
+  "compileTargets": [
+    "app/services/youtube_service.py",
+    "app/worker/tasks.py",
+    "app/services/task.py",
+    "scripts/auto_agent.py",
+    "scripts/auto_fix_recipes.py",
+    "scripts/ao_auto_orchestrator.py"
+  ],
+  "agentCommand": "codex.cmd exec --full-auto --cwd D:\\prepareInterview\\video\\MoneyPrinterTurbo \"Read scripts/windows_agent_runner.README.md, inspect the latest audit report under storage/windows-agent-runner/cycles, then apply one bounded source-code improvement with minimal diff and leave the worktree buildable.\""
+}

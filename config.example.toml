@@ -111,6 +111,7 @@ modelscope_model_name = "Qwen/Qwen3-32B"
 # Subtitle Provider, "edge" or "whisper"
 # If empty, the subtitle will not be generated
 subtitle_provider = "edge"
+subtitle_whisper_fallback = true
 
 #
 # ImageMagick
@@ -175,6 +176,48 @@ redis_password = ""
 
 # 文生视频时的最大并发任务数
 max_concurrent_tasks = 5
+max_material_clips = 12
+enable_autopilot = false
+enable_sponsorship = false
+clear_run_data_after_upload = true
+enable_cache_cleanup = true
+cache_cleanup_days = 7
+cache_max_size_gb = 8
+cleanup_task_intermediates = true
+
+# Worker / queue load control
+worker_prefetch_multiplier = 1
+worker_max_tasks_per_child = 1
+broker_visibility_timeout = 14400
+max_render_threads_per_job = 1
+render_queue_name = "render"
+upload_queue_name = "upload"
+control_queue_name = "control"
+multi_platform_upload_workers = 3
+
+# FFmpeg performance tuning
+ffmpeg_preset = "veryfast"
+ffmpeg_video_bitrate = "3000k"
+ffmpeg_audio_bitrate = "128k"
+ffmpeg_crf = 24
+
+# Revenue orchestration
+max_videos_per_run = 12
+intent_min_score = 30
+offer_explore_rate = 0.2
+offer_winner_promote_share = 0.75
+offer_winner_min_impressions = 50
+offer_winner_min_lift_ratio = 0.15
+
+# Runtime affiliate URL overrides by offer code.
+# Example:
+# [app.offer_url_overrides]
+# FIN_A = "https://yourdomain.com/go/finance-a"
+# AI_A = "https://yourdomain.com/go/ai-a"
+#
+# [app.offer_landing_overrides]
+# FIN_A = "https://yourdomain.com/finance-landing"
+# AI_A = "https://yourdomain.com/ai-landing"
 
 
 [whisper]
@@ -190,7 +233,7 @@ max_concurrent_tasks = 5
 # model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
 # recommended model_size: "large-v3"
-model_size = "large-v3"
+model_size = "base"
 # if you want to use GPU, set device="cuda"
 device = "CPU"
 compute_type = "int8"
@@ -221,3 +264,7 @@ api_key = ""
 # 是否隐藏日志信息
 # Whether to hide logs in the UI
 hide_log = false
+
+[youtube]
+# Default visibility when uploading to YouTube: public | private | unlisted
+privacy_status = "public"

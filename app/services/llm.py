@@ -11,7 +11,23 @@ from openai.types.chat import ChatCompletion
 
 from app.config import config
 
-_max_retries = 5
+_max_retries = int(config.app.get("llm_retry_attempts", 2) or 2)
+_llm_timeout_seconds = int(config.app.get("llm_timeout_seconds", 20) or 20)
+
+
+def _fallback_terms(video_subject: str, amount: int = 5) -> List[str]:
+    subject = (video_subject or "").strip().lower()
+    subject_words = [w for w in re.split(r"[^a-z0-9]+", subject) if len(w) > 2]
+    core = " ".join(subject_words[:2]).strip()
+    seed = core if core else "human behavior"
+    terms = [
+        f"{seed} close up",
+        "crowd walking city",
+        "person thinking alone",
+        "office conversation",
+        "street people portrait",
+    ]
+    return terms[: max(1, int(amount or 5))]
 
 
 def _generate_response(prompt: str) -> str:
@@ -116,7 +132,13 @@ def _generate_response(prompt: str) -> str:
                     }
                     
                     # Make the API request
-                    response = requests.post(base_url, headers=headers, json=payload, verify=False)
+                    response = requests.post(
+                        base_url,
+                        headers=headers,
+                        json=payload,
+                        verify=False,
+                        timeout=(10, _llm_timeout_seconds),
+                    )
                     response.raise_for_status()
                     result = response.json()
                     
@@ -359,6 +381,8 @@ def _generate_response(prompt: str) -> str:
                     api_key=api_key,
                     api_version=api_version,
                     azure_endpoint=base_url,
+                    max_retries=0,
+                    timeout=_llm_timeout_seconds,
                 )
 
             if llm_provider == "modelscope":
@@ -366,6 +390,8 @@ def _generate_response(prompt: str) -> str:
                 client = OpenAI(
                     api_key=api_key,
                     base_url=base_url,
+                    max_retries=0,
+                    timeout=_llm_timeout_seconds,
                 )
                 response = client.chat.completions.create(
                     model=model_name,
@@ -392,6 +418,8 @@ def _generate_response(prompt: str) -> str:
                 client = OpenAI(
                     api_key=api_key,
                     base_url=base_url,
+                    max_retries=0,
+                    timeout=_llm_timeout_seconds,
                 )
 
             response = client.chat.completions.create(
@@ -416,23 +444,76 @@ def _generate_response(prompt: str) -> str:
 
 
 def generate_script(
-    video_subject: str, language: str = "", paragraph_number: int = 1
+    video_subject: str, language: str = "", paragraph_number: int = 1,
+    video_style: str = ""
 ) -> str:
+    # Build style-specific instructions
+    style_instructions = ""
+    hook_examples = ""
+    if video_style:
+        from app.services import style_presets
+        preset = style_presets.get_preset(video_style)
+        if preset:
+            style_instructions = f"""
+## Style & Tone:
+{preset['script_tone']}
+"""
+            hooks = preset.get("hook_examples", [])
+            if hooks:
+                hook_examples = "\n".join(f"- \"{h}\"" for h in hooks)
+                hook_examples = f"""
+## Hook Examples (use similar style, do NOT copy verbatim):
+{hook_examples}
+"""
+
     prompt = f"""
-# Role: Video Script Generator
+# Role: Viral Video Script Generator
 
 ## Goals:
-Generate a script for a video, depending on the subject of the video.
+Generate a VIRAL short-form video script that maximizes viewer RETENTION, ENGAGEMENT and SHARES.
+The script must be optimized for TikTok, Instagram Reels, and YouTube Shorts.
 
-## Constrains:
-1. the script is to be returned as a string with the specified number of paragraphs.
-2. do not under any circumstance reference this prompt in your response.
-3. get straight to the point, don't start with unnecessary things like, "welcome to this video".
-4. you must not include any type of markdown or formatting in the script, never use a title.
-5. only return the raw content of the script.
-6. do not include "voiceover", "narrator" or similar indicators of what should be spoken at the beginning of each paragraph or line.
-7. you must not mention the prompt, or anything about the script itself. also, never talk about the amount of paragraphs or lines. just write the script.
-8. respond in the same language as the video subject.
+## Script Structure (MUST follow this exact flow):
+
+### 1. HOOK (first 1-2 sentences) - THE most critical part
+- Create an irresistible CURIOSITY GAP or EMOTIONAL TRIGGER in the first 3 seconds
+- Use pattern: shocking claim, bold question, counterintuitive statement, or vivid scenario
+- The viewer must feel they CANNOT scroll away
+- AVOID overused templates like "they don't want you to know" or "nobody is talking about this"
+- Instead use SPECIFIC hooks: reference a real brand, a real statistic, or a vivid scenario
+
+### 2. PATTERN INTERRUPT (after hook)
+- Shift tone, pace, or topic angle slightly to re-grab attention
+- Example: pause, reframe, or say something unexpected
+
+### 3. VALUE DELIVERY (3-5 short segments)
+- Deliver content in SHORT, PUNCHY sentences (5-10 words MAXIMUM per sentence)
+- Each point should be 1-2 sentences max
+- Use SPECIFIC facts: name real brands, cite real studies, give exact numbers
+- Example: "Amazon does this with lightning deals" NOT "stores do this"
+- Create OPEN LOOPS: hint at what's coming next so viewers keep watching
+
+### 4. COMMENT BAIT (near the end)
+- Insert a POLARIZING statement or QUESTION that forces viewers to comment
+- Make it personal: "Which one has happened to YOU?"
+
+### 5. CTA / CLOSE
+- End with a direct question that drives comments
+- Keep it under 2 sentences
+{style_instructions}{hook_examples}
+## Hard Rules:
+1. Return ONLY the raw script text - no titles, headers, labels, or formatting
+2. Do NOT reference this prompt, the video format, or production details
+3. Do NOT start with "welcome", "hey guys", or generic greetings
+4. Do NOT use markdown, asterisks, hashtags, or bullet points
+5. Do NOT include stage directions like "voiceover", "narrator", "cut to"
+6. MAXIMUM 10 words per sentence - shorter is always better
+7. Use conversational, SPOKEN language - write how people TALK, not write
+8. Total script MUST be under 150 words (aim for 100-130 words for 60-second format)
+9. Create at least one OPEN LOOP (tease what's coming)
+10. Respond in the SAME language as the video subject
+11. Include at least ONE specific brand name, study reference, or exact statistic
+12. The script should be {paragraph_number} paragraph(s) when read naturally
 
 # Initialization:
 - video subject: {video_subject}
@@ -446,21 +527,15 @@ Generate a script for a video, depending on the subject of the video.
 
     def format_response(response):
         # Clean the script
-        # Remove asterisks, hashes
         response = response.replace("*", "")
         response = response.replace("#", "")
 
         # Remove markdown syntax
-        response = re.sub(r"\[.*\]", "", response)
-        response = re.sub(r"\(.*\)", "", response)
+        response = re.sub(r"\[.*?\]", "", response)
+        response = re.sub(r"\(.*?\)", "", response)
 
-        # Split the script into paragraphs
+        # Split and rejoin paragraphs
         paragraphs = response.split("\n\n")
-
-        # Select the specified number of paragraphs
-        # selected_paragraphs = paragraphs[:paragraph_number]
-
-        # Join the selected paragraphs into a single string
         return "\n\n".join(paragraphs)
 
     for i in range(_max_retries):
@@ -491,20 +566,38 @@ Generate a script for a video, depending on the subject of the video.
 
 def generate_terms(video_subject: str, video_script: str, amount: int = 5) -> List[str]:
     prompt = f"""
-# Role: Video Search Terms Generator
+# Role: Cinematic Video Search Terms Generator
 
 ## Goals:
-Generate {amount} search terms for stock videos, depending on the subject of a video.
+Generate {amount} search terms for stock video footage (Pexels/Pixabay) that VISUALLY MATCH the script.
 
-## Constrains:
-1. the search terms are to be returned as a json-array of strings.
-2. each search term should consist of 1-3 words, always add the main subject of the video.
-3. you must only return the json-array of strings. you must not return anything else. you must not return the script.
-4. the search terms must be related to the subject of the video.
-5. reply with english search terms only.
+## CRITICAL Rules for Stock Footage Search:
+1. Return ONLY a JSON array of strings - nothing else
+2. Each term should be 1-3 SIMPLE words in English
+3. Terms MUST find real results on Pexels.com - test mentally: "would this search work?"
+4. Use COMMON, FILMABLE subjects: people, places, objects, actions
+5. AVOID poetic/abstract terms that won't exist as stock footage
+6. Each term should find DIFFERENT footage - maximize visual variety
 
-## Output Example:
-["search term 1", "search term 2", "search term 3","search term 4","search term 5"]
+## GOOD terms (will find footage on Pexels):
+- "person scrolling phone" - common, filmable
+- "crowd walking city" - common scene
+- "close up eyes" - simple, exists in stock
+- "office meeting" - standard stock footage
+- "dark corridor" - simple, atmospheric
+- "sunrise timelapse" - popular stock footage
+
+## BAD terms (will NOT find footage on Pexels):
+- "shadow figure whispering" - too specific/staged
+- "brain neural network" - too abstract
+- "puppet master controlling" - too conceptual
+- "empty stock warning label" - too niche
+
+## Match script mood:
+- Dark/dramatic: "dark room silhouette", "rain window", "close up eyes"
+- Motivational: "runner sunrise", "mountain summit", "gym workout"
+- Luxury: "luxury car", "penthouse view", "gold jewelry"
+- Calm: "ocean waves", "forest path", "morning coffee"
 
 ## Context:
 ### Video Subject
@@ -513,7 +606,7 @@ Generate {amount} search terms for stock videos, depending on the subject of a v
 ### Video Script
 {video_script}
 
-Please note that you must use English for generating video search terms; Chinese is not accepted.
+Generate {amount} Pexels-friendly, visually diverse search terms.
 """.strip()
 
     logger.info(f"subject: {video_subject}")
@@ -524,8 +617,11 @@ Please note that you must use English for generating video search terms; Chinese
         try:
             response = _generate_response(prompt)
             if "Error: " in response:
-                logger.error(f"failed to generate video script: {response}")
-                return response
+                logger.error(f"failed to generate video terms: {response}")
+                if "quota" in response.lower() or "429" in response:
+                    logger.warning("LLM quota/rate issue detected, using fallback terms")
+                    return _fallback_terms(video_subject, amount)
+                continue
             search_terms = json.loads(response)
             if not isinstance(search_terms, list) or not all(
                 isinstance(term, str) for term in search_terms
@@ -549,6 +645,31 @@ Please note that you must use English for generating video search terms; Chinese
         if i < _max_retries:
             logger.warning(f"failed to generate video terms, trying again... {i + 1}")
 
+    if not search_terms:
+        search_terms = _fallback_terms(video_subject, amount)
+        logger.warning(f"using fallback search terms: {search_terms}")
+
     logger.success(f"completed: \n{search_terms}")
     return search_terms
+
+
+def translate_content(text: str, target_language: str) -> str:
+    """
+    Translate arbitrary content to a target language.
+
+    Falls back to the original text if translation fails.
+    """
+    if not text or not target_language or target_language.lower() == "en":
+        return text
+
+    prompt = (
+        f"Translate the following text to {target_language}. "
+        "Return only the translated text without notes:\n\n"
+        f"{text}"
+    )
+    result = _generate_response(prompt)
+    if not result or result.startswith("Error:"):
+        return text
+    return result.strip()
+
     

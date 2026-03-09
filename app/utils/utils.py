@@ -85,6 +85,11 @@ def resource_dir(sub_dir: str = ""):
     return d
 
 
+def get_resource_dir():
+    """Backward-compatible alias for legacy imports."""
+    return resource_dir()
+
+
 def task_dir(sub_dir: str = ""):
     d = os.path.join(storage_dir(), "tasks")
     if sub_dir:

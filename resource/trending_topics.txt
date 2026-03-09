@@ -1,0 +1,75 @@
+# Trending Topics for Viral Video Generation
+# Format: [category] headers, one topic per line
+# Topics are scored by the trend engine for viral potential
+
+[dark_psychology]
+5 Dark Psychology Tricks That Control People
+Why Narcissists Always Come Back After Discard
+The Hidden Manipulation Technique Used By CEOs
+Signs Someone Is Secretly Jealous Of You
+How Your Brain Is Being Manipulated Every Day
+Dark Truths About Human Nature Nobody Tells You
+Why Smart People Get Manipulated The Most
+The Psychology Behind Why People Lie
+7 Mind Games Toxic People Play
+How To Spot A Master Manipulator Instantly
+
+[motivation]
+Why 99% of People Will Never Be Successful
+The One Habit That Changed My Life Forever
+Stop Wasting Your 20s Doing These Things
+What Successful People Do Before 6 AM
+The Real Reason You're Not Achieving Your Goals
+How To Build Unstoppable Discipline In 30 Days
+Why Comfort Is The Enemy Of Growth
+10 Rules That Will Make You Mentally Tough
+The Truth About Success Nobody Wants To Hear
+Why Most People Quit Right Before Success
+
+[luxury_lifestyle]
+What A $50 Million Home Looks Like Inside
+Daily Routine Of A Self-Made Billionaire
+Why The Rich Keep Getting Richer
+10 Things Only Rich People Know About Money
+The Mindset Difference Between Rich And Poor
+How Millionaires Spend Their Mornings
+Luxury Items That Are Actually Worth The Price
+The Secret Habits Of Ultra-Wealthy People
+Why Rich People Never Work For Money
+Inside The Most Expensive Hotels In The World
+
+[stoic_philosophy]
+Marcus Aurelius Quotes That Will Change Your Life
+The Stoic Secret To Never Being Angry
+How To Stop Caring What Others Think
+Ancient Wisdom For Modern Problems
+Why Overthinking Is Destroying Your Life
+The Stoic Way To Handle Difficult People
+How To Find Peace In A Chaotic World
+Epictetus On What You Can And Cannot Control
+The Art Of Letting Go According To Stoics
+Why Silence Is The Ultimate Power
+
+[viral_facts]
+Facts That Sound Fake But Are Completely True
+Things Your Body Does That Science Can't Explain
+Mind-Blowing Facts About The Universe
+Everyday Objects With Hidden Features You Never Knew
+The Craziest World Records Ever Set
+Scientific Facts That Will Make You Question Reality
+Things That Happen Every Second Around The World
+Historical Facts They Don't Teach In School
+Bizarre Laws That Actually Exist
+Animals With Superpowers You Won't Believe
+
+[general]
+Things You're Doing Wrong Every Day Without Knowing
+What Your Birth Month Says About Your Personality
+Signs You're Smarter Than You Think
+Habits That Silently Destroy Your Life
+Things Your Phone Can Do That You Didn't Know
+Psychology Tricks To Make Anyone Like You
+Warning Signs You Should Never Ignore
+The Biggest Lies You Were Told Growing Up
+Things That Will Be Worth A Fortune In 10 Years
+Skills That Will Make You Irreplaceable
